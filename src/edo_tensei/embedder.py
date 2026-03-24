@@ -86,6 +86,16 @@ def _encode(texts: list[str]) -> np.ndarray:
     return _normalize(pooled)
 
 
+def unload_model() -> None:
+    """モデルとセッションをメモリから解放する."""
+    import gc
+
+    global _session, _tokenizer
+    _session = None
+    _tokenizer = None
+    gc.collect()
+
+
 def embed_query(text: str) -> list[float]:
     """検索クエリ用の埋め込みを生成."""
     vectors = _encode([f"検索クエリ: {text}"])
@@ -93,13 +103,17 @@ def embed_query(text: str) -> list[float]:
 
 
 def embed_documents(texts: list[str]) -> list[list[float]]:
-    """複数文書を一括で埋め込み生成（バッチ処理）."""
-    prefixed = [f"検索文書: {t}" for t in texts]
-    # メモリ節約のためバッチ分割
-    batch_size = 8
-    all_vectors = []
-    for i in range(0, len(prefixed), batch_size):
-        batch = prefixed[i : i + batch_size]
-        vectors = _encode(batch)
-        all_vectors.append(vectors)
-    return np.concatenate(all_vectors, axis=0).tolist()
+    """複数文書を1件ずつ埋め込み生成.
+
+    バッチ処理はONNX Runtimeのメモリが累積的に膨張するため、
+    1件ずつ処理してメモリを抑える。
+    """
+    import gc
+
+    results: list[list[float]] = []
+    for text in texts:
+        vectors = _encode([f"検索文書: {text}"])
+        results.append(vectors[0].tolist())
+        # ONNX Runtimeの中間バッファを解放
+        gc.collect()
+    return results

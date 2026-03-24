@@ -5,6 +5,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from .db import get_stats, open_db
+from .embedder import unload_model
 from .search import hybrid_search
 from .service import save_transcript as _save_transcript
 
@@ -24,6 +25,7 @@ def search_memory(query: str, limit: int = 5) -> str:
         limit: 返す結果の最大数（デフォルト5）
     """
     results = hybrid_search(query, limit=limit)
+    unload_model()
 
     if not results:
         return "該当する記憶が見つかりませんでした。"
@@ -51,6 +53,7 @@ def save_transcript(transcript: str, session_id: str = "") -> str:
         session_id: セッションID（空の場合は自動生成）
     """
     result = _save_transcript(transcript, session_id)
+    unload_model()
 
     if result["chunks"] == 0:
         return "保存するチャンクがありませんでした。"
