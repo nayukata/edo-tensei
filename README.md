@@ -13,7 +13,7 @@ Claude Codeの長期記憶。過去の会話を保存・検索し、文脈を引
 ## セットアップ
 
 ```bash
-git clone https://github.com/nichicoma/edo-tensei.git
+git clone https://github.com/nayukata/edo-tensei.git
 cd edo-tensei
 uv sync
 ```
