@@ -42,12 +42,20 @@ if [ -z "$UV_CMD" ]; then
   exit 0
 fi
 
-# タイムアウト付きでバックグラウンド実行（最大5分で強制終了）
+# バックグラウンド実行 + タイムアウト（最大5分で強制終了）
+# macOSにはtimeoutコマンドがないため、シェルで実装
 TIMEOUT=300
-nohup timeout "$TIMEOUT" "$UV_CMD" run --directory "$PROJECT_DIR" \
-  edo-tensei save "$TRANSCRIPT_PATH" --session-id "$SESSION_ID" \
-  >> "$LOG" 2>&1 &
+(
+  "$UV_CMD" run --directory "$PROJECT_DIR" \
+    edo-tensei save "$TRANSCRIPT_PATH" --session-id "$SESSION_ID" \
+    >> "$LOG" 2>&1 &
+  SAVE_PID=$!
+  (sleep "$TIMEOUT" && kill "$SAVE_PID" 2>/dev/null && echo "[$(date)] TIMEOUT: killed save process (pid=$SAVE_PID)" >> "$LOG") &
+  WATCHDOG_PID=$!
+  wait "$SAVE_PID" 2>/dev/null
+  kill "$WATCHDOG_PID" 2>/dev/null
+) &
 disown
-echo "[$(date)] Save kicked off (pid=$!, timeout=${TIMEOUT}s)" >> "$LOG"
+echo "[$(date)] Save kicked off (timeout=${TIMEOUT}s)" >> "$LOG"
 
 exit 0
