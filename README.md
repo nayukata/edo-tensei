@@ -6,7 +6,8 @@ Claude Codeの長期記憶。過去の会話を保存・検索し、文脈を引
 
 - **ハイブリッド検索** — FTS5 trigram（キーワード）+ Ruri v3（ベクトル）をRRFで統合
 - **SQLite 1ファイル** — 外部サービス不要、`~/.edo-tensei/memory.db` に全データ格納
-- **LLM不使用で保存** — 埋め込み生成はローカルモデル（Ruri v3-310m）、トークン消費ゼロ
+- **LLM不使用で保存** — 埋め込み生成はローカルモデル（Ruri v3-310m ONNX）、トークン消費ゼロ
+- **軽量ランタイム** — ONNX Runtimeで推論。PyTorch不要でメモリ消費を大幅削減
 - **時間減衰** — 半減期60日、古い記憶ほどスコアが下がる
 - **自動保存** — SessionEnd hookでセッション終了時に自動保存。手動操作ゼロ
 
@@ -18,7 +19,30 @@ cd edo-tensei
 uv sync
 ```
 
-初回実行時にRuri v3モデル（約1.2GB）が自動ダウンロードされる。
+### ONNXモデルの準備（初回のみ）
+
+Ruri v3をONNX形式に変換する。PyTorchは変換時のみ一時的に使用し、実行時には不要。
+
+```bash
+uv run --with 'optimum[onnxruntime]' --with torch python -c "
+from optimum.onnxruntime import ORTModelForFeatureExtraction
+from huggingface_hub import snapshot_download
+import shutil, os
+
+output_dir = os.path.expanduser('~/.edo-tensei/models/ruri-v3-310m-onnx')
+model = ORTModelForFeatureExtraction.from_pretrained('cl-nagoya/ruri-v3-310m', export=True)
+model.save_pretrained(output_dir)
+
+cache_dir = snapshot_download('cl-nagoya/ruri-v3-310m', allow_patterns=['tokenizer*', 'special_tokens*'])
+for f in ['tokenizer.json', 'tokenizer.model', 'tokenizer_config.json', 'special_tokens_map.json']:
+    src = os.path.join(cache_dir, f)
+    if os.path.exists(src):
+        shutil.copy2(src, os.path.join(output_dir, f))
+print('Done.')
+"
+```
+
+`~/.edo-tensei/models/ruri-v3-310m-onnx/` にモデルファイルが保存される（約1.2GB）。
 
 ## Claude Codeへの登録
 
@@ -109,7 +133,7 @@ uv run edo-tensei serve                           # MCPサーバー起動
 
 | 項目 | 詳細 |
 |------|------|
-| 埋め込みモデル | [Ruri v3-310m](https://huggingface.co/cl-nagoya/ruri-v3-310m)（日本語特化, 768次元） |
+| 埋め込みモデル | [Ruri v3-310m](https://huggingface.co/cl-nagoya/ruri-v3-310m)（日本語特化, 768次元, ONNX Runtime推論） |
 | キーワード検索 | SQLite FTS5 trigram トークナイザ |
 | ベクトル検索 | [sqlite-vec](https://github.com/asg017/sqlite-vec) |
 | 統合手法 | RRF（Reciprocal Rank Fusion） |
