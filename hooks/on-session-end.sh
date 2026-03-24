@@ -42,11 +42,12 @@ if [ -z "$UV_CMD" ]; then
   exit 0
 fi
 
-# nohupで完全にデタッチし、hookプロセス終了後も生き残るようにする
-nohup "$UV_CMD" run --directory "$PROJECT_DIR" \
+# タイムアウト付きでバックグラウンド実行（最大5分で強制終了）
+TIMEOUT=300
+nohup timeout "$TIMEOUT" "$UV_CMD" run --directory "$PROJECT_DIR" \
   edo-tensei save "$TRANSCRIPT_PATH" --session-id "$SESSION_ID" \
   >> "$LOG" 2>&1 &
 disown
-echo "[$(date)] Save kicked off (pid=$!)" >> "$LOG"
+echo "[$(date)] Save kicked off (pid=$!, timeout=${TIMEOUT}s)" >> "$LOG"
 
 exit 0
